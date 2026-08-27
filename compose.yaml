@@ -1,0 +1,33 @@
+name: onecve
+
+services:
+  onecve:
+    image: onecve:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_NSPA_API_URL: http://127.0.0.1:8000
+        ONECVE_APT_MIRROR: ${ONECVE_APT_MIRROR-http://mirrors.aliyun.com/ubuntu}
+    ports:
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:8000:8000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      NSPA_LLM_MODEL: ${NSPA_LLM_MODEL:-gpt-4o-mini}
+      NSPA_LLM_BASE_URL: ${NSPA_LLM_BASE_URL:-https://api.openai.com/v1}
+      NSPA_LLM_CHAT_PATH: ${NSPA_LLM_CHAT_PATH:-/chat/completions}
+      NSPA_WEB_WORKERS: ${NSPA_WEB_WORKERS:-2}
+      NSPA_MAX_UPLOAD_BYTES: ${NSPA_MAX_UPLOAD_BYTES:-1073741824}
+    volumes:
+      - onecve-data:/data
+    restart: unless-stopped
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  onecve-data:
+    name: onecve-data

@@ -1,0 +1,42 @@
+
+# Local tooling metadata
+.agents/
+.codex/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+
+# OneCVE runtime data and imported projects
+.nspa-web/
+outputs/
+workspace/
+open-source-soft/
+cmmfs/
+
+# Local Python environment
+.venv-web/
+
+# Secrets and local overrides
+.env
+compose.local.yaml
+
+# Frontend dependencies and generated output
+web/node_modules/
+web/.next/
+web/.vinext/
+web/dist/
+web/.wrangler/
+
+# SVF and LLVM generated output
+SVF/Release-build/
+SVF/Debug-build/
+SVF/build/
+SVF/llvm-*.obj
+SVF/z3.obj
+SVF/compile_commands.json
+*.ll
+*.bc
+compile_commands.json
+
+# Distributable images belong in GitHub Releases
+OneCVE-*.tar
