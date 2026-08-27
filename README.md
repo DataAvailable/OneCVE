@@ -1,52 +1,92 @@
 # OneCVE
 
-OneCVE 是一个面向 C/C++ 项目的本地 Web 漏洞检测工具。它将目标源码自动编译为 LLVM Bitcode，调用定制的 SVF 执行静态分析，并在网页中展示漏洞位置、源码证据、分析日志与复核结果。
+OneCVE 是面向 C/C++ 项目的本地 Web 漏洞检测工具。它自动识别项目构建系统、生成 LLVM Bitcode，并基于定制的 SVF/Saber 完成漏洞扫描、证据解析、源码定位和可选的 LLM 复核。
 
-## 主要功能
+![OneCVE 安全分析总览](docs/images/onecve-overview.png)
 
-- 支持上传源码包、导入公开 Git 仓库。
-- 自动识别并依次回退 `compile_commands.json`、CMake、Meson、Autotools 和 Make。
-- 通用生成 LLVM Bitcode，支持编译数据库规范化、Bitcode 包装器和最低覆盖率检查。
-- 支持五类漏洞检测：
-  - 内存泄漏
-  - 重复释放
-  - 释放后引用
-  - 文件未关闭
-  - 空指针解引用
-- 支持漏洞去重、源码切片、条件路径和 LLM 复核。
-- 支持手动填写或从文件导入项目自定义的内存分配/释放函数。
-- 支持源码在线查看、调用路径高亮与扫描统计。
-- 支持人工确认漏洞或标记误报，并按 LLM 复核与人工验证状态筛选。
-- 支持项目级联删除、扫描任务批量终止/删除和可重建产物清理。
-- 展示 OneCVE 数据、构建产物和所在磁盘的空间占用。
-- 支持导出 JSON 和 CSV 漏洞报告。
+## 功能
 
-## Docker 环境
+- 支持上传源码包或导入公开 Git 仓库。
+- 自动适配 CMake、Meson、Autotools、Make 和 `compile_commands.json`。
+- 检测内存泄漏、重复释放、释放后引用、文件未关闭和空指针解引用。
+- 在线查看源码，标注访问、释放位置及调用路径。
+- 支持 LLM 复核、人工验证、状态筛选和结果统计。
+- 支持自定义内存分配/释放函数，以及 JSON、CSV 报告导出。
+- 支持项目、扫描任务、构建产物和漏洞结果管理，并展示磁盘占用。
 
-项目根目录的 Docker 配置会构建一个完整的本地运行镜像，其中包含：
+## 运行平台
 
-- Ubuntu 24.04
-- LLVM/Clang 18
-- 定制的 SVF/Saber 与 `extapi.bc`
-- CMake、Ninja、Make、Bear、Meson、Autotools 和 Git
-- Python、FastAPI 与 OneCVE 分析代码
-- Node.js 22 与生产版 Web 前端
+OneCVE 以 `linux/amd64` Docker 容器交付：
 
-目标开源项目自身需要的特殊开发库无法统一预装。如果某个项目依赖额外库，可在本镜像基础上扩展安装。
+- Windows 10/11 x64：使用 Docker Desktop，并启用 Linux Containers/WSL2。
+- Linux x86_64：使用 Docker Engine 和 Docker Compose v2。
 
-## Docker 快速部署
+当前版本不是 Windows 原生程序；Windows 与 Linux 使用同一容器镜像。首次构建需要下载依赖并编译 SVF，建议至少准备 8 GB 内存和 20 GB 可用磁盘空间，并确保本机端口 `3000`、`8000` 未被占用。
 
-需要预先安装 Docker Desktop，或 Docker Engine 与 Docker Compose v2。首次构建需要下载系统依赖并编译 SVF，建议至少准备 8 GB 内存和 20 GB 可用磁盘。
+## Docker 部署
 
-### 1. 配置可选的 LLM
+推荐使用 [GitHub Releases](https://github.com/DataAvailable/OneCVE/releases) 提供的离线 Docker 包；也可以从源码构建镜像。
 
-不使用 LLM 时可跳过此步骤。
+### 方式一：Release 离线包（推荐）
 
-Linux/macOS：
+`v1.0.0` 提供的 `OneCVE-v1.0.0-docker-amd64.zip` 可同时用于 Windows x64 和 Linux x86_64。压缩包内包含：
+
+```text
+.env.example
+compose.yaml
+OneCVE-1.0-linux-amd64.tar
+```
+
+其中 tar 文件保存的是 `linux/amd64` 容器镜像；Windows 通过 Docker Desktop 的 Linux Containers/WSL2 运行同一镜像。
+
+#### Windows PowerShell
+
+1. 安装并启动 Docker Desktop，确认使用 Linux containers。
+2. 下载 [`OneCVE-v1.0.0-docker-amd64.zip`](https://github.com/DataAvailable/OneCVE/releases/download/v1.0.0/OneCVE-v1.0.0-docker-amd64.zip)。
+3. 在下载目录执行：
+
+```powershell
+Expand-Archive -LiteralPath .\OneCVE-v1.0.0-docker-amd64.zip -DestinationPath .\OneCVE-v1.0.0
+Set-Location .\OneCVE-v1.0.0
+docker load -i .\OneCVE-1.0-linux-amd64.tar
+Copy-Item .env.example .env
+docker compose up -d --no-build
+```
+
+`docker load` 应输出：
+
+```text
+Loaded image: onecve:local
+```
+
+#### Linux
+
+1. 安装并启动 Docker Engine、Docker Compose v2 和 `unzip`。
+2. 下载 Release 离线包后执行：
 
 ```bash
+unzip OneCVE-v1.0.0-docker-amd64.zip -d OneCVE-v1.0.0
+cd OneCVE-v1.0.0
+docker load -i OneCVE-1.0-linux-amd64.tar
 cp .env.example .env
+docker compose up -d --no-build
 ```
+
+> 必须在包含 `compose.yaml` 的解压目录中执行 Compose 命令。离线包不包含源码和 Dockerfile，因此请保留 `--no-build`；否则 Compose 会尝试从源码重新构建并失败。
+
+### 方式二：从源码构建
+
+适用于需要修改源码或自行构建镜像的场景。首次构建会下载系统依赖并编译 SVF，耗时和磁盘占用明显高于离线部署。
+
+```bash
+git clone https://github.com/DataAvailable/OneCVE.git
+cd OneCVE
+docker compose up -d --build
+```
+
+### LLM 配置（可选）
+
+离线部署命令会将 `.env.example` 复制为 `.env`；不使用 LLM 复核时保持默认空值即可，启动后也可以在“本地设置”页面配置模型服务。从源码构建时，如需预先配置，可在包含 `compose.yaml` 的目录中复制模板：
 
 Windows PowerShell：
 
@@ -54,7 +94,13 @@ Windows PowerShell：
 Copy-Item .env.example .env
 ```
 
-然后编辑 `.env`：
+Linux：
+
+```bash
+cp .env.example .env
+```
+
+按需编辑 `.env`：
 
 ```dotenv
 OPENAI_API_KEY=your-api-key
@@ -63,69 +109,76 @@ NSPA_LLM_BASE_URL=https://api.openai.com/v1
 NSPA_LLM_CHAT_PATH=/chat/completions
 ```
 
-也可以在“本地设置”中保存 LLM 配置。API Key 仅保存在本机 OneCVE 数据目录中，接口不会回传明文。
+`NSPA_LLM_BASE_URL` 支持 OpenAI 兼容的云端或本地模型服务。本地模型部署在 Windows 宿主机时，容器内通常应通过 `host.docker.internal` 访问，而不是使用 `127.0.0.1`。
 
-### 2. 构建并启动
+修改 `.env` 后执行以下命令重建容器，使配置生效；离线部署请保留 `--no-build`：
 
 ```bash
-docker compose up --build -d
+docker compose up -d --no-build
 ```
 
-查看启动状态：
+### 验证启动
+
+检查容器状态和日志：
 
 ```bash
 docker compose ps
-docker compose logs -f onecve
+docker compose logs --tail 100 onecve
 ```
 
-首次构建完成后访问：
+当容器状态为 `healthy` 后访问：
 
-- Web 工作台：<http://localhost:3000>
+- Web 工作台：<http://127.0.0.1:3000>
 - API 健康检查：<http://127.0.0.1:8000/api/health>
 - API 文档：<http://127.0.0.1:8000/docs>
 
-Compose 只将端口绑定到 `127.0.0.1`，不会默认暴露到局域网。
+Windows PowerShell 也可以执行以下命令验证 API：
 
-### 3. 停止或重新启动
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/health
+```
+
+默认端口仅绑定到 `127.0.0.1`，不会暴露到局域网。
+
+## 日常管理
+
+查看实时日志：
+
+```bash
+docker compose logs -f onecve
+```
+
+停止和重新启动：
 
 ```bash
 docker compose stop
 docker compose start
 ```
 
-完全停止并删除容器：
+从源码部署时，更新源码并重新构建：
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+删除容器但保留项目和扫描数据：
 
 ```bash
 docker compose down
 ```
 
-扫描数据保存在名为 `onecve-data` 的 Docker 卷中，执行 `docker compose down` 不会删除数据。
-
-### 4. 更新镜像
-
-源码更新后重新构建：
+数据保存在 Docker 卷 `onecve-data` 中。以下命令会同时永久删除该卷及全部 OneCVE 数据，请谨慎执行：
 
 ```bash
-docker compose build
-docker compose up -d
+docker compose down -v
 ```
 
-## 使用说明
+## 使用说明与安全提示
 
-完整的项目导入、扫描配置、漏洞审核、报告导出、数据管理和故障排查说明见：
+项目导入、扫描配置、漏洞复核、结果导出和故障排查参见 [OneCVE 使用手册](docs/USER_GUIDE.md)。
 
-[OneCVE 使用手册](docs/USER_GUIDE.md)
-
-## 数据与安全
-
-- 默认数据卷：`onecve-data`
-- 容器内数据目录：`/data`
-- Web 端口：`127.0.0.1:3000`
-- API 端口：`127.0.0.1:8000`
-- 容器以非 root 用户执行扫描任务。
-- 容器直接以非 root 用户运行；Compose 删除全部 Linux capabilities，并启用 `no-new-privileges`。
-- 上传源码包会检查目录穿越、绝对路径、链接和设备文件。
-启用远程 LLM 复核后，漏洞报告、调用路径和相关源码切片会发送给所配置的模型服务。敏感项目请关闭漏洞 LLM 复核或使用本地模型服务。
+OneCVE 默认在本机运行，容器以非 root 用户执行，并删除 Linux capabilities、启用 `no-new-privileges`。启用远程 LLM 复核后，漏洞证据、调用路径和相关源码片段会发送至所配置的模型服务；分析敏感项目时，建议关闭 LLM 复核或使用可信的本地模型。
 
 ## License
 
